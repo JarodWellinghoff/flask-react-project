@@ -162,7 +162,7 @@ function DashboardContent() {
         )}
 
         {/* SSE Connection Status */}
-        {taskId && (
+        {taskId && connectionState !== "CLOSED" && (
           <div className='app__connection-status'>
             SSE Status:{" "}
             <span className={`status status--${connectionState.toLowerCase()}`}>

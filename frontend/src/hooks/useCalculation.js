@@ -56,6 +56,7 @@ export function useCalculation() {
     setIsRunning(false);
     setProgress(100);
     setResults(summary);
+    setTimeout(() => setTaskId(null), 1000);
   }, []);
 
   const downloadResults = useCallback(

@@ -44,6 +44,16 @@ export function useSSE(taskId) {
     };
   }, [taskId]);
 
+  useEffect(() => {
+    if (lastMessage?.type === "calculation_complete") {
+      // Give a small delay for any final messages, then disconnect
+      setTimeout(() => {
+        sseService.disconnect();
+        setConnectionState("CLOSED");
+      }, 500);
+    }
+  }, [lastMessage]);
+
   return {
     connectionState,
     lastMessage,
