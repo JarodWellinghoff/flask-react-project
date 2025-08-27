@@ -74,6 +74,7 @@ class SSEService {
    * Disconnect from SSE stream
    */
   disconnect() {
+    console.debug("Disconnecting SSE");
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;

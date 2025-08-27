@@ -1,5 +1,6 @@
 // src/components/PlotGrid/ConvergencePlot.jsx
-import React from "react";
+"use client";
+import React, { use } from "react";
 import {
   LineChart,
   Line,

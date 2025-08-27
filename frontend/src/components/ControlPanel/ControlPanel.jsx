@@ -39,6 +39,16 @@ export function ControlPanel({
           className={`btn btn--primary ${isRunning ? "btn--disabled" : ""}`}>
           Start Calculation
         </button>
+        <button
+          onClick={async (e) => {
+            e.preventDefault();
+            const res = await fetch(`http://localhost:5000/health`);
+            const data = await res.json();
+            console.log("Health Check:", data);
+          }}
+          className={`btn btn--secondary ${isRunning ? "btn--disabled" : ""}`}>
+          Health Check
+        </button>
 
         {isRunning && (
           <button onClick={onCancel} className='btn btn--danger'>
