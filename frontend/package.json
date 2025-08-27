@@ -32,7 +32,8 @@
     ]
   },
   "devDependencies": {
-    "react-scripts": "5.0.1"
+    "@biomejs/biome": "2.2.2",
+    "react-scripts": "^0.0.0"
   },
   "proxy": "http://localhost:5000"
 }

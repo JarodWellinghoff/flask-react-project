@@ -109,15 +109,13 @@ jobs:
         with:
           node-version: "18"
 
-      - name: Install ESLint
-        run: |
-          cd frontend
-          npm install eslint --save-dev
+      - name: Setup Biome
+        uses: biomejs/setup-biome@v2
+        with:
+          version: latest
 
-      - name: Run ESLint
-        run: |
-          cd frontend
-          npx eslint src/
+      - name: Run Biome
+        run: biome ci .
 
   docker-build:
     runs-on: ubuntu-latest
