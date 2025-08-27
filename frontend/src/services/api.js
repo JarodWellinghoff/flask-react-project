@@ -136,6 +136,40 @@ class APIService {
   }
 
   /**
+   * Send acknowledgment for a message (used internally by SSE hook)
+   */
+  async sendAcknowledgment(taskId, messageId) {
+    const response = await fetch(`${API_BASE}/ack/${taskId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message_id: messageId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Check acknowledgment status (for debugging)
+   */
+  async checkAcknowledgmentStatus(taskId, messageId) {
+    const response = await fetch(
+      `${API_BASE}/ack-status/${taskId}/${messageId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Health check
    */
   async healthCheck() {

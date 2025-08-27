@@ -9,7 +9,7 @@ export function ControlPanel({
   isRunning,
   taskId,
 }) {
-  const [numIterations, setNumIterations] = useState(30);
+  const [numIterations, setNumIterations] = useState(5);
 
   const handleStart = () => {
     onStart(numIterations, { seed: 42 });

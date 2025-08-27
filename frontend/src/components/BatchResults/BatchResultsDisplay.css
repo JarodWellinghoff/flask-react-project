@@ -111,6 +111,7 @@
   cursor: pointer;
   transition: all 0.2s;
   min-width: 120px;
+  color: black;
 }
 
 .test-tab:hover:not(.test-tab--pending) {

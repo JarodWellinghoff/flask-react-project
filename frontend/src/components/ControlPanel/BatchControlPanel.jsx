@@ -27,12 +27,12 @@ export function BatchControlPanel({
   const generateUniqueName = () => {
     return uniqueNamesGenerator(customConfig);
   };
-  const [numIterations, setNumIterations] = useState(30);
+  const [numIterations, setNumIterations] = useState(5);
   const [mode, setMode] = useState("single"); // 'single' or 'batch'
   const [batchTests, setBatchTests] = useState([
     {
       name: generateUniqueName(),
-      num_iterations: 30,
+      num_iterations: 5,
       test_params: { seed: 42 },
     },
   ]);
@@ -56,7 +56,7 @@ export function BatchControlPanel({
       ...batchTests,
       {
         name: generateUniqueName(),
-        num_iterations: 30,
+        num_iterations: 5,
         test_params: { seed: Math.floor(Math.random() * 1000) },
       },
     ]);

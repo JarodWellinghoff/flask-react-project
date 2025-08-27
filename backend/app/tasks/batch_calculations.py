@@ -1,18 +1,21 @@
-# app/tasks/batch_calculations.py
+# app/tasks/batch_calculations.py - Updated with acknowledgment system
 """Batch calculation tasks for running multiple calculations sequentially"""
 from app.extensions import celery
 from app.services.redis_service import RedisService
-from app.services.sse_service import SSEService
+from app.services.message_queue import MessageQueue
 from app.tasks.plot_generators import PlotDataGenerator
 import time
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 @celery.task(bind=True)
 def batch_calculation_task(self, batch_config):
     """Execute multiple calculations sequentially"""
     task_id = self.request.id
     redis_service = RedisService()
-    sse_service = SSEService()
+    message_queue = MessageQueue()
     plot_generator = PlotDataGenerator()
     
     tests = batch_config.get('tests', [])
@@ -29,25 +32,26 @@ def batch_calculation_task(self, batch_config):
         }
         redis_service.store_task_metadata(task_id, batch_metadata)
         
-        # Send batch started message
-        sse_service.queue_message(task_id, {
-            'type': 'batch_started',
-            'task_id': task_id,
-            'total_tests': total_tests
-        })
+        # Send batch started message (requires acknowledgment)
+        message_queue.send_batch_update(
+            task_id, 
+            'batch_started',
+            total_tests=total_tests
+        )
         
         for test_index, test_config in enumerate(tests):
             # Update batch progress
             batch_metadata['current_test_index'] = test_index
             redis_service.store_task_metadata(task_id, batch_metadata)
             
-            # Send test started message
-            sse_service.queue_message(task_id, {
-                'type': 'test_started',
-                'test_index': test_index,
-                'test_name': test_config.get('name', f'Test {test_index + 1}'),
-                'test_config': test_config
-            })
+            # Send test started message (doesn't require ack - just informational)
+            message_queue.send_batch_update(
+                task_id,
+                'test_started',
+                test_index=test_index,
+                test_name=test_config.get('name', f'Test {test_index + 1}'),
+                test_config=test_config
+            )
             
             # Run individual calculation
             test_result = run_single_calculation(
@@ -55,7 +59,7 @@ def batch_calculation_task(self, batch_config):
                 test_index,
                 test_config, 
                 redis_service, 
-                sse_service, 
+                message_queue, 
                 plot_generator
             )
             
@@ -64,24 +68,17 @@ def batch_calculation_task(self, batch_config):
             batch_metadata['completed_tests'] = test_index + 1
             redis_service.store_task_metadata(task_id, batch_metadata)
             
-            # Send test completed message
-            sse_service.queue_message(task_id, {
-                'type': 'test_completed',
-                'test_index': test_index,
-                'test_name': test_config.get('name', f'Test {test_index + 1}'),
-                'test_result': test_result,
-                'batch_progress': int((test_index + 1) / total_tests * 100)
-            })
-
-            print(task_id, {
-                'type': 'test_completed',
-                'test_index': test_index,
-                'test_name': test_config.get('name', f'Test {test_index + 1}'),
-                'test_result': test_result,
-                'batch_progress': int((test_index + 1) / total_tests * 100)
-            })
-
-            time.sleep(1)
+            # Send test completed message (requires acknowledgment)
+            message_queue.send_batch_update(
+                task_id,
+                'test_completed',
+                test_index=test_index,
+                test_name=test_config.get('name', f'Test {test_index + 1}'),
+                test_result=test_result,
+                batch_progress=int((test_index + 1) / total_tests * 100)
+            )
+            
+            logger.info(f"Completed test {test_index + 1}/{total_tests} for batch {task_id}")
             
             # Check for cancellation
             if redis_service.is_task_cancelled(task_id):
@@ -102,31 +99,38 @@ def batch_calculation_task(self, batch_config):
         # Store final results
         redis_service.store_task_results(task_id, final_results)
         
-        # Send batch completion message
-        sse_service.queue_message(task_id, {
-            'type': 'batch_completed',
-            'task_id': task_id,
-            'batch_summary': batch_summary,
-            'total_tests': total_tests
-        })
+        # Send batch completion message (requires acknowledgment)
+        message_queue.send_batch_update(
+            task_id,
+            'batch_completed',
+            batch_summary=batch_summary,
+            total_tests=total_tests
+        )
         
+        logger.info(f"Batch calculation {task_id} completed successfully")
         return final_results
         
     except Exception as e:
         import traceback
         traceback.print_exc()
         error_message = str(e)
-        sse_service.queue_message(task_id, {
-            'type': 'batch_error',
-            'error': error_message
-        })
+        
+        # Send error message (doesn't require ack)
+        message_queue.send_batch_update(
+            task_id,
+            'batch_error',
+            error=error_message
+        )
+        
         redis_service.update_task_progress(task_id, {
             'status': 'failed',
             'error': error_message
         })
+        
+        logger.error(f"Batch calculation {task_id} failed: {error_message}")
         raise
 
-def run_single_calculation(task_id, test_index, test_config, redis_service, sse_service, plot_generator):
+def run_single_calculation(task_id, test_index, test_config, redis_service, message_queue, plot_generator):
     """Run a single calculation within a batch"""
     num_iterations = test_config.get('num_iterations', 30)
     test_params = test_config.get('test_params', {})
@@ -153,14 +157,15 @@ def run_single_calculation(task_id, test_index, test_config, redis_service, sse_
         if i == num_iterations - 1:
             final_error_distribution = plot_data['plots']['error_distribution']
         
-        # Send iteration progress
-        sse_service.queue_message(task_id, {
-            'type': 'test_iteration_update',
-            'test_index': test_index,
-            'iteration': i + 1,
-            'total_iterations': num_iterations,
-            'test_progress': int((i + 1) / num_iterations * 100)
-        })
+        # Send iteration progress (doesn't require ack - frequent updates)
+        message_queue.send_batch_update(
+            task_id,
+            'test_iteration_update',
+            test_index=test_index,
+            iteration=i + 1,
+            total_iterations=num_iterations,
+            test_progress=int((i + 1) / num_iterations * 100)
+        )
         
         # Update progress in Redis
         redis_service.update_task_progress(task_id, {

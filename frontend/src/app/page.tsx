@@ -10,6 +10,7 @@ import { ErrorBoundary } from "@/src/components/ErrorBoundary/ErrorBoundary";
 import { useBatchCalculation } from "@/src/hooks/useBatchCalculation";
 import { usePlotData } from "@/src/hooks/usePlotData";
 import { useBatchSSE } from "@/src/hooks/useBatchSSE";
+import { AcknowledgmentMonitor } from "@/src/components/Debug/AcknowledgmentMonitor";
 
 // Define the possible message types for batch operations
 type SSEMessage =
@@ -167,7 +168,6 @@ function DashboardContent() {
 
       case "test_completed":
         // Add the completed test result
-        console.log(lastMessage.test_result);
         addTestResult(lastMessage.test_result);
 
         // Update batch progress
@@ -242,9 +242,11 @@ function DashboardContent() {
     // Start batch calculation
     await startBatchCalculation(batchConfig);
   };
-
   return (
     <div className='app'>
+      {process.env.NODE_ENV === "development" && (
+        <AcknowledgmentMonitor taskId={taskId} isVisible={true} />
+      )}
       <div className='app__container'>
         <h1 className='app__title'>
           Real-time {isBatchMode ? "Batch " : ""}Calculation Dashboard
