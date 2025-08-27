@@ -6,6 +6,7 @@ class SSEService {
   constructor() {
     this.eventSource = null;
     this.listeners = new Map();
+    this.isManuallyClosing = false;
   }
 
   /**
@@ -13,23 +14,72 @@ class SSEService {
    */
   connect(
     taskId,
-    baseUrl = process.env.REACT_APP_API_URL || "http://localhost:5000/api"
+    baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
   ) {
     if (this.eventSource) {
       this.disconnect();
     }
 
-    this.eventSource = new EventSource(`${baseUrl}/stream/${taskId}`);
+    const sseUrl = `${baseUrl}/stream/${taskId}`;
+    console.log("Attempting SSE connection to:", sseUrl);
+
+    this.eventSource = new EventSource(sseUrl);
+    this.isManuallyClosing = false;
 
     return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        console.error("SSE connection timeout");
+        this.disconnect();
+        reject(new Error("SSE connection timeout"));
+      }, 10000);
+
       this.eventSource.onopen = () => {
+        clearTimeout(timeout);
         console.log("SSE connection established");
         resolve();
       };
 
       this.eventSource.onerror = (error) => {
-        console.error("SSE connection error:", error);
-        reject(error);
+        clearTimeout(timeout);
+
+        // Check if this is a normal closure (server finished) vs actual error
+        if (
+          this.eventSource?.readyState === EventSource.CLOSED &&
+          !this.isManuallyClosing
+        ) {
+          console.log("SSE stream closed by server (normal completion)");
+          // Don't treat this as an error - it's expected when task completes
+          return;
+        }
+
+        if (this.eventSource?.readyState === EventSource.CONNECTING) {
+          console.log("SSE reconnecting...");
+          return; // Let it retry
+        }
+
+        // Only log as error for actual connection failures
+        if (
+          this.eventSource?.readyState === EventSource.CLOSED &&
+          this.isManuallyClosing
+        ) {
+          console.log("SSE manually disconnected");
+          return;
+        }
+
+        console.error("SSE connection error:", {
+          readyState: this.eventSource?.readyState,
+          url: sseUrl,
+          timestamp: Date.now(),
+        });
+
+        // Only reject if we haven't successfully connected yet
+        if (this.eventSource?.readyState !== EventSource.OPEN) {
+          reject(
+            new Error(
+              `SSE connection failed. ReadyState: ${this.eventSource?.readyState}`
+            )
+          );
+        }
       };
     });
   }
@@ -46,8 +96,17 @@ class SSEService {
 
     if (event === "message" && this.eventSource) {
       this.eventSource.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        this.emit("message", data);
+        try {
+          const data = JSON.parse(e.data);
+          this.emit("message", data);
+
+          // If we receive a completion message, expect the connection to close
+          if (data.type === "calculation_complete") {
+            console.log("Received completion message, connection will close");
+          }
+        } catch (err) {
+          console.error("Failed to parse SSE message:", e.data);
+        }
       };
     }
   }
@@ -75,6 +134,7 @@ class SSEService {
    */
   disconnect() {
     console.debug("Disconnecting SSE");
+    this.isManuallyClosing = true;
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
