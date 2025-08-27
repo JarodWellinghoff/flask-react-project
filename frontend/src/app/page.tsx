@@ -1,15 +1,32 @@
 "use client";
-import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { ControlPanel } from "@/src/components/ControlPanel/ControlPanel";
 import { ProgressBar } from "@/src/components/ProgressBar/ProgressBar";
 import { PlotGrid } from "@/src/components/PlotGrid/PlotGrid";
 import { ResultsSummary } from "@/src/components/ResultsSummary/ResultsSummary";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary/ErrorBoundary";
 import { useCalculation } from "@/src/hooks/useCalculation";
 import { usePlotData } from "@/src/hooks/usePlotData";
 import { useSSE } from "@/src/hooks/useSSE";
 
-export default function Home() {
+// Define the possible message types
+type SSEMessage =
+  | {
+      type: "plot_update";
+      iteration: number;
+      plots: any;
+      progress: number;
+      total_iterations: number;
+    }
+  | { type: "calculation_complete"; task_id: string; summary: any }
+  | { type: "current_state"; state: any }
+  | { type: "error"; error: any }
+  | { type: "connected"; task_id: string }
+  | { type: "timeout" }
+  | { type: "cancelled" }
+  | { type: string; [key: string]: any }; // fallback for unknown types
+
+function DashboardContent() {
   const {
     taskId,
     isRunning,
@@ -37,20 +54,6 @@ export default function Home() {
 
   const [dataTransferred, setDataTransferred] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
-  // Define the possible message types
-  type SSEMessage =
-    | {
-        type: "plot_update";
-        iteration: number;
-        plots: any;
-        progress: number;
-        total_iterations: number;
-      }
-    | { type: "calculation_complete"; task_id: string; summary: any }
-    | { type: "current_state"; state: any }
-    | { type: "error"; error: any }
-    | { type: "connected"; task_id: string }
-    | { type: string; [key: string]: any }; // fallback for unknown types
 
   const {
     lastMessage,
@@ -98,6 +101,10 @@ export default function Home() {
 
       case "connected":
         console.log("SSE Connected:", lastMessage.task_id);
+        break;
+
+      case "cancelled":
+        console.log("Calculation cancelled");
         break;
 
       default:
@@ -169,13 +176,15 @@ export default function Home() {
           accuracyData.length > 0 ||
           performanceData.length > 0) && (
           <div className='app__section'>
-            <PlotGrid
-              convergenceData={convergenceData}
-              accuracyData={accuracyData}
-              performanceData={performanceData}
-              errorDistribution={errorDistribution}
-              plotStats={plotStats}
-            />
+            <Suspense fallback={<div>Loading plots...</div>}>
+              <PlotGrid
+                convergenceData={convergenceData}
+                accuracyData={accuracyData}
+                performanceData={performanceData}
+                errorDistribution={errorDistribution}
+                plotStats={plotStats}
+              />
+            </Suspense>
           </div>
         )}
 
@@ -187,5 +196,13 @@ export default function Home() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <ErrorBoundary>
+      <DashboardContent />
+    </ErrorBoundary>
   );
 }
