@@ -1,0 +1,44 @@
+# kubernetes/celery-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: calculation-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+    spec:
+      containers:
+        - name: celery
+          image: your-registry/calc-backend:latest
+          command:
+            [
+              "celery",
+              "-A",
+              "celery_worker.celery",
+              "worker",
+              "--loglevel=info",
+            ]
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: REDIS_URL
+              value: "redis://redis:6379/0"
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+---
+
