@@ -79,3 +79,11 @@ body {
   color: #ef4444;
   background-color: #fee2e2;
 }
+.app__status-message {
+  padding: 1rem;
+  text-align: center;
+  background-color: #f0f9ff;
+  border-radius: 0.5rem;
+  color: #0369a1;
+  border-left: 4px solid #3b82f6;
+}
