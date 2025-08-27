@@ -12,53 +12,37 @@ export function usePlotData() {
   const [errorDistribution, setErrorDistribution] = useState([]);
   const [plotStats, setPlotStats] = useState({});
 
-  const updatePlotData = useCallback((plotUpdate) => {
-    // Update convergence plot
-    if (plotUpdate.convergence) {
-      if (plotUpdate.convergence.full_data) {
-        setConvergenceData(plotUpdate.convergence.full_data);
-      } else if (plotUpdate.convergence.new_point) {
-        setConvergenceData((prev) => [
-          ...prev,
-          plotUpdate.convergence.new_point,
-        ]);
-      }
+  // New function to set all plot data at once when calculation is complete
+  const setCompletePlotData = useCallback((completePlots) => {
+    console.log("Setting complete plot data:", completePlots);
+
+    // Set convergence data
+    if (completePlots.convergence) {
+      setConvergenceData(completePlots.convergence);
     }
 
-    // Update accuracy plot
-    if (plotUpdate.accuracy) {
-      if (plotUpdate.accuracy.full_data) {
-        setAccuracyData(plotUpdate.accuracy.full_data);
-      } else if (plotUpdate.accuracy.new_point) {
-        setAccuracyData((prev) => [...prev, plotUpdate.accuracy.new_point]);
-      }
+    // Set accuracy data
+    if (completePlots.accuracy) {
+      setAccuracyData(completePlots.accuracy);
     }
 
-    // Update performance plot
-    if (plotUpdate.performance) {
-      if (plotUpdate.performance.full_data) {
-        setPerformanceData(plotUpdate.performance.full_data);
-      } else if (plotUpdate.performance.new_point) {
-        setPerformanceData((prev) => {
-          const newData = [...prev, plotUpdate.performance.new_point];
-          // Keep only last 20 points for performance
-          return newData.slice(-20);
-        });
-      }
+    // Set performance data
+    if (completePlots.performance) {
+      setPerformanceData(completePlots.performance);
     }
 
-    // Update error distribution
-    if (plotUpdate.error_distribution) {
+    // Generate error distribution from the last iteration if available
+    if (completePlots.error_distribution) {
       const histData = DataTransformService.createHistogram(
-        plotUpdate.error_distribution.data,
+        completePlots.error_distribution.data,
         20
       );
       setErrorDistribution(histData);
 
-      if (plotUpdate.error_distribution.stats) {
+      if (completePlots.error_distribution.stats) {
         setPlotStats((prev) => ({
           ...prev,
-          errorStats: plotUpdate.error_distribution.stats,
+          errorStats: completePlots.error_distribution.stats,
         }));
       }
     }
@@ -85,8 +69,8 @@ export function usePlotData() {
     performanceData,
     errorDistribution,
     plotStats,
-    updatePlotData,
     resetPlotData,
     setFinalStats,
+    setCompletePlotData, // New function
   };
 }

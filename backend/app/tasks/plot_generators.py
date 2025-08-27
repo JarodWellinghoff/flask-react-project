@@ -31,25 +31,29 @@ class PlotDataGenerator:
             'cpu': min(100, 30 + i * 2 + np.random.normal(0, 10))
         }
         
-        # Generate error distribution
-        errors = np.random.normal(0, 1 / (i + 1), 100).tolist()
+        # Generate error distribution (more refined for final iteration)
+        if i == total_iterations - 1:
+            # Generate a more comprehensive error distribution for the final iteration
+            errors = np.random.normal(0, 1 / (i + 1), 500).tolist()  # More samples for final
+        else:
+            errors = np.random.normal(0, 1 / (i + 1), 100).tolist()
         
-        # Prepare plot update (send full data for first 10, then only new points)
+        # Prepare plot update
         plots = {
             'convergence': {
                 'type': 'line',
                 'new_point': convergence_point,
-                'full_data': None if i >= 10 else None  # Will be filled if needed
+                'full_data': None
             },
             'accuracy': {
                 'type': 'line',
                 'new_point': accuracy_point,
-                'full_data': None if i >= 10 else None
+                'full_data': None
             },
             'performance': {
                 'type': 'multi_line',
                 'new_point': performance_point,
-                'full_data': None if i >= 10 else None
+                'full_data': None
             },
             'error_distribution': {
                 'type': 'histogram',

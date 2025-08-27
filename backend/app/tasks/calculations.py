@@ -19,12 +19,13 @@ def long_calculation_task(self, num_iterations, test_params):
     all_convergence_data = []
     all_accuracy_data = []
     all_performance_data = []
+    final_error_distribution = None
     
     try:
         for i in range(num_iterations):
             # Simulate computation
-            time.sleep(1)  # Replace with actual calculation
-            
+            time.sleep(np.random.uniform(0.5, 1.5))  # Replace with actual calculation
+
             # Generate plot data
             plot_data = plot_generator.generate_iteration_data(i, num_iterations)
             
@@ -33,13 +34,18 @@ def long_calculation_task(self, num_iterations, test_params):
             all_accuracy_data.append(plot_data['accuracy_point'])
             all_performance_data.append(plot_data['performance_point'])
             
-            # Create SSE update message
+            # Store the final error distribution (from last iteration)
+            if i == num_iterations - 1:
+                final_error_distribution = plot_data['plots']['error_distribution']
+            
+            # Create SSE update message - only send progress, not plot data
             sse_message = {
                 'type': 'plot_update',
                 'iteration': i + 1,
                 'total_iterations': num_iterations,
                 'progress': int((i + 1) / num_iterations * 100),
-                'plots': plot_data['plots']
+                # Remove plots from real-time updates
+                # 'plots': plot_data['plots']
             }
             
             # Send SSE message
@@ -57,33 +63,44 @@ def long_calculation_task(self, num_iterations, test_params):
             if redis_service.is_task_cancelled(task_id):
                 raise Exception('Task cancelled by user')
         
+        # Calculate final metrics
+        final_metrics = plot_generator.calculate_final_metrics(
+            all_convergence_data,
+            all_accuracy_data,
+            all_performance_data
+        )
+        
+        # Prepare complete plot data
+        complete_plots = {
+            'convergence': all_convergence_data,
+            'accuracy': all_accuracy_data,
+            'performance': all_performance_data,
+        }
+        
+        # Add error distribution if available
+        if final_error_distribution:
+            complete_plots['error_distribution'] = final_error_distribution
+        
         # Prepare final results
         final_results = {
             'status': 'completed',
             'total_iterations': num_iterations,
-            'final_metrics': plot_generator.calculate_final_metrics(
-                all_convergence_data,
-                all_accuracy_data,
-                all_performance_data
-            ),
-            'complete_plots': {
-                'convergence': all_convergence_data,
-                'accuracy': all_accuracy_data,
-                'performance': all_performance_data
-            }
+            'final_metrics': final_metrics,
+            'complete_plots': complete_plots
         }
         
         # Store final results
         redis_service.store_task_results(task_id, final_results)
         
-        # Send completion message
+        # Send completion message with complete plot data
         sse_service.queue_message(task_id, {
             'type': 'calculation_complete',
             'task_id': task_id,
-            'summary': final_results['final_metrics']
+            'summary': final_metrics,
+            'complete_plots': complete_plots  # Include complete plot data
         })
         
-        return final_results['final_metrics']
+        return final_metrics
         
     except Exception as e:
         # Handle errors

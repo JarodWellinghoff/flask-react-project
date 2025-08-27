@@ -18,7 +18,12 @@ type SSEMessage =
       progress: number;
       total_iterations: number;
     }
-  | { type: "calculation_complete"; task_id: string; summary: any }
+  | {
+      type: "calculation_complete";
+      task_id: string;
+      summary: any;
+      complete_plots?: any;
+    }
   | { type: "current_state"; state: any }
   | { type: "error"; error: any }
   | { type: "connected"; task_id: string }
@@ -47,9 +52,9 @@ function DashboardContent() {
     performanceData,
     errorDistribution,
     plotStats,
-    updatePlotData,
     resetPlotData,
     setFinalStats,
+    setCompletePlotData, // New function to set all plots at once
   } = usePlotData();
 
   const [dataTransferred, setDataTransferred] = useState(0);
@@ -78,13 +83,18 @@ function DashboardContent() {
     console.log("SSE Message:", lastMessage);
     switch (lastMessage.type) {
       case "plot_update":
+        // Only update progress, not plots
         updateProgress(lastMessage.progress);
-        updatePlotData(lastMessage.plots);
         break;
 
       case "calculation_complete":
         completeCalculation(lastMessage.summary);
         setFinalStats(lastMessage.summary);
+
+        // Update all plots at once with complete data
+        if (lastMessage.complete_plots) {
+          setCompletePlotData(lastMessage.complete_plots);
+        }
         break;
 
       case "current_state":
@@ -113,9 +123,9 @@ function DashboardContent() {
   }, [
     lastMessage,
     updateProgress,
-    updatePlotData,
     completeCalculation,
     setFinalStats,
+    setCompletePlotData,
   ]);
 
   const handleStart = async (numIterations: number, testParams: any) => {
@@ -171,22 +181,39 @@ function DashboardContent() {
           </div>
         )}
 
-        {/* Plot Grid */}
-        {(convergenceData.length > 0 ||
-          accuracyData.length > 0 ||
-          performanceData.length > 0) && (
+        {/* Show message during calculation */}
+        {isRunning && (
           <div className='app__section'>
-            <Suspense fallback={<div>Loading plots...</div>}>
-              <PlotGrid
-                convergenceData={convergenceData}
-                accuracyData={accuracyData}
-                performanceData={performanceData}
-                errorDistribution={errorDistribution}
-                plotStats={plotStats}
-              />
-            </Suspense>
+            <div
+              style={{
+                padding: "1rem",
+                textAlign: "center",
+                backgroundColor: "#f0f9ff",
+                borderRadius: "0.5rem",
+                color: "#0369a1",
+              }}>
+              Calculation in progress... Plots will be displayed when complete.
+            </div>
           </div>
         )}
+
+        {/* Plot Grid - Only show when calculation is complete */}
+        {!isRunning &&
+          (convergenceData.length > 0 ||
+            accuracyData.length > 0 ||
+            performanceData.length > 0) && (
+            <div className='app__section'>
+              <Suspense fallback={<div>Loading plots...</div>}>
+                <PlotGrid
+                  convergenceData={convergenceData}
+                  accuracyData={accuracyData}
+                  performanceData={performanceData}
+                  errorDistribution={errorDistribution}
+                  plotStats={plotStats}
+                />
+              </Suspense>
+            </div>
+          )}
 
         {/* Results Summary */}
         {results && (
