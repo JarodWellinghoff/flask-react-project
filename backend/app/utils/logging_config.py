@@ -41,18 +41,21 @@ def setup_logging(app):
     error_handler.setFormatter(formatter)
     error_handler.setLevel(logging.ERROR)
     
-    # Configure root logger
+    # Configure root logger - this will handle all logging
     root_logger = logging.getLogger()
+    
+    # Clear any existing handlers to avoid duplicates
+    root_logger.handlers.clear()
+    
     root_logger.setLevel(logging.DEBUG if app.config['DEBUG'] else logging.INFO)
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(error_handler)
     
-    # Configure app logger
+    # Configure app logger - just set level, don't add handlers
     app.logger.setLevel(logging.DEBUG if app.config['DEBUG'] else logging.INFO)
-    app.logger.addHandler(console_handler)
-    app.logger.addHandler(file_handler)
-    app.logger.addHandler(error_handler)
+    # Don't add handlers to app.logger - let it propagate to root
+    app.logger.propagate = True  # This is the default, but being explicit
     
     # Configure werkzeug logger
     werkzeug_logger = logging.getLogger('werkzeug')
