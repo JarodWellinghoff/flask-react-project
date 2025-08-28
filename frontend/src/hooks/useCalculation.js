@@ -1,33 +1,73 @@
 // src/hooks/useCalculation.js
 import { useState, useCallback, useRef, useEffect } from "react";
 import apiService from "../services/api";
+import { SSE_CONFIG } from "@/src/utils/constants";
 
 /**
- * Hook for managing calculation lifecycle
+ * Hook for managing batch calculation lifecycle
  */
 export function useCalculation() {
   const [taskId, setTaskId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [batchProgress, setBatchProgress] = useState(0);
   const [error, setError] = useState(null);
-  const [results, setResults] = useState(null);
+  const [isBatchMode, setIsBatchMode] = useState(false);
+
+  // Batch-specific state
+  const [totalTests, setTotalTests] = useState(0);
+  const [completedTests, setCompletedTests] = useState(0);
+  const [currentTestIndex, setCurrentTestIndex] = useState(0);
+  const [currentTestProgress, setCurrentTestProgress] = useState(0);
+  const [testResults, setTestResults] = useState([]);
+  const [batchSummary, setBatchSummary] = useState(null);
+
   const startTimeRef = useRef(null);
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  const startCalculation = useCallback(async (numIterations, testParams) => {
+  const startSingleCalculation = useCallback(
+    async (numIterations, testParams) => {
+      try {
+        setIsRunning(true);
+        setIsBatchMode(false);
+        setError(null);
+        setBatchProgress(0);
+        setTestResults([]);
+        setBatchSummary(null);
+        startTimeRef.current = Date.now();
+
+        const response = await apiService.startCalculation(
+          numIterations,
+          testParams
+        );
+        setTaskId(response.task_id);
+        return response.task_id;
+      } catch (err) {
+        setError(err.message);
+        setIsRunning(false);
+        throw err;
+      }
+    },
+    []
+  );
+
+  const startBatchCalculation = useCallback(async (batchConfig) => {
     try {
       setIsRunning(true);
+      setIsBatchMode(true);
       setError(null);
-      setProgress(0);
-      setResults(null);
+      setBatchProgress(0);
+      setCurrentTestProgress(0);
+      setTestResults([]);
+      setBatchSummary(null);
       startTimeRef.current = Date.now();
 
-      const response = await apiService.startCalculation(
-        numIterations,
-        testParams
-      );
-      setTaskId(response.task_id);
+      // Set batch metadata
+      setTotalTests(batchConfig.tests.length);
+      setCompletedTests(0);
+      setCurrentTestIndex(0);
 
+      const response = await apiService.startBatchCalculation(batchConfig);
+      setTaskId(response.task_id);
       return response.task_id;
     } catch (err) {
       setError(err.message);
@@ -42,22 +82,61 @@ export function useCalculation() {
     try {
       await apiService.cancelTask(taskId);
       setIsRunning(false);
-      setProgress(0);
+      setBatchProgress(0);
+      setCurrentTestProgress(0);
     } catch (err) {
       setError(err.message);
     }
   }, [taskId]);
 
-  const updateProgress = useCallback((newProgress) => {
-    setProgress(newProgress);
+  const updateSingleProgress = useCallback((newProgress) => {
+    setBatchProgress(newProgress);
   }, []);
 
-  const completeCalculation = useCallback((summary) => {
-    setIsRunning(false);
-    setProgress(100);
-    setResults(summary);
-    setTimeout(() => setTaskId(null), 1000);
+  const updateBatchProgress = useCallback((data) => {
+    if (data.batch_progress !== undefined) {
+      setBatchProgress(data.batch_progress);
+    }
+    if (data.completed_tests !== undefined) {
+      setCompletedTests(data.completed_tests);
+    }
+    if (data.current_test_index !== undefined) {
+      setCurrentTestIndex(data.current_test_index);
+    }
+    if (data.test_progress !== undefined) {
+      setCurrentTestProgress(data.test_progress);
+    }
   }, []);
+
+  const addTestResult = useCallback((testResult) => {
+    setTestResults((prev) => {
+      // Ensure we don't duplicate results
+      const existingIndex = prev.findIndex(
+        (r) => r.test_index === testResult.test_index
+      );
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = testResult;
+        return updated;
+      }
+      return [...prev, testResult];
+    });
+  }, []);
+
+  const completeCalculation = useCallback(
+    (summary) => {
+      setIsRunning(false);
+      setBatchProgress(100);
+      setCurrentTestProgress(100);
+
+      if (isBatchMode) {
+        setBatchSummary(summary);
+      }
+
+      setTimeout(() => setTaskId(null), SSE_CONFIG.RECONNECT_DELAY);
+    },
+    [isBatchMode]
+  );
 
   const downloadResults = useCallback(
     async (format = "json") => {
@@ -66,18 +145,19 @@ export function useCalculation() {
       try {
         const blob = await apiService.downloadPlotData(taskId, format);
 
-        // Create download link
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `results_${taskId}.${format}`;
+        a.download = `${
+          isBatchMode ? "batch_" : ""
+        }results_${taskId}.${format}`;
         a.click();
         window.URL.revokeObjectURL(url);
       } catch (err) {
         setError(err.message);
       }
     },
-    [taskId]
+    [taskId, isBatchMode]
   );
 
   // Update elapsed time
@@ -92,15 +172,34 @@ export function useCalculation() {
   }, [isRunning]);
 
   return {
+    // Common state
     taskId,
     isRunning,
-    progress,
     error,
-    results,
     elapsedTime,
-    startCalculation,
+
+    // Mode state
+    isBatchMode,
+
+    // Single calculation state
+    singleProgress: batchProgress,
+
+    // Batch calculation state
+    batchProgress,
+    totalTests,
+    completedTests,
+    currentTestIndex,
+    currentTestProgress,
+    testResults,
+    batchSummary,
+
+    // Actions
+    startSingleCalculation,
+    startBatchCalculation,
     cancelCalculation,
-    updateProgress,
+    updateSingleProgress,
+    updateBatchProgress,
+    addTestResult,
     completeCalculation,
     downloadResults,
   };

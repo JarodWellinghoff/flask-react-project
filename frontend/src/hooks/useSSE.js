@@ -1,15 +1,56 @@
-// src/hooks/useSSE.js
+// src/hooks/useSSE.js - Enhanced with acknowledgment support
 import { useEffect, useRef, useState } from "react";
+import { API_CONFIG, MESSAGE_TYPES } from "@/src/utils/constants";
 import sseService from "../services/sseService";
 
-/**
- * Hook for managing SSE connections
- */
-export function useSSE(taskId) {
+const API_BASE = API_CONFIG.API_BASE;
+
+export function useSSE(taskId, isBatchMode) {
   const [connectionState, setConnectionState] = useState("CLOSED");
   const [lastMessage, setLastMessage] = useState(null);
   const [error, setError] = useState(null);
   const messageHandlerRef = useRef();
+  const acknowledgeQueue = useRef(new Set()); // Track pending acknowledgments
+
+  // Function to send acknowledgment to backend
+  const sendAcknowledgment = async (taskId, messageId) => {
+    try {
+      const ackKey = `${taskId}-${messageId}`;
+
+      // Prevent duplicate acknowledgments
+      if (acknowledgeQueue.current.has(ackKey)) {
+        return;
+      }
+
+      acknowledgeQueue.current.add(ackKey);
+
+      const response = await fetch(`${API_BASE}/ack/${taskId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message_id: messageId,
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `Failed to acknowledge message ${messageId}:`,
+          response.status
+        );
+      } else {
+        console.debug(`Acknowledged message ${messageId} for task ${taskId}`);
+      }
+
+      // Remove from queue after processing (success or failure)
+      acknowledgeQueue.current.delete(ackKey);
+    } catch (error) {
+      console.error(`Error acknowledging message ${messageId}:`, error);
+      // Remove from queue even on error to prevent infinite retries
+      acknowledgeQueue.current.delete(`${taskId}-${messageId}`);
+    }
+  };
 
   useEffect(() => {
     if (!taskId) return;
@@ -21,13 +62,24 @@ export function useSSE(taskId) {
         setConnectionState("OPEN");
         setError(null);
 
-        // Set up message handler
-        messageHandlerRef.current = (data) => {
+        messageHandlerRef.current = async (data) => {
+          console.debug("Received SSE message:", data);
+
+          // Send acknowledgment if required
+          if (data.requires_ack && data.message_id) {
+            console.debug(`Message ${data.message_id} requires acknowledgment`);
+
+            // Send acknowledgment immediately (don't wait)
+            sendAcknowledgment(taskId, data.message_id);
+          }
+
+          // Set the message for processing
           setLastMessage(data);
         };
 
         sseService.on("message", messageHandlerRef.current);
       } catch (err) {
+        console.error("SSE connection error:", err);
         setError(err.message);
         setConnectionState("CLOSED");
       }
@@ -41,15 +93,20 @@ export function useSSE(taskId) {
       }
       sseService.disconnect();
       setConnectionState("CLOSED");
+      // Clear acknowledgment queue on cleanup
+      acknowledgeQueue.current.clear();
     };
   }, [taskId]);
 
   useEffect(() => {
-    if (lastMessage?.type === "calculation_complete") {
-      // Give a small delay for any final messages, then disconnect
+    if (
+      lastMessage?.type === MESSAGE_TYPES.CALCULATION_COMPLETE ||
+      lastMessage?.type === MESSAGE_TYPES.BATCH_COMPLETED
+    ) {
       setTimeout(() => {
         sseService.disconnect();
         setConnectionState("CLOSED");
+        acknowledgeQueue.current.clear();
       }, 500);
     }
   }, [lastMessage]);
@@ -60,6 +117,7 @@ export function useSSE(taskId) {
     error,
     reconnect: () => {
       if (taskId) {
+        acknowledgeQueue.current.clear();
         sseService.disconnect();
         sseService.connect(taskId);
       }

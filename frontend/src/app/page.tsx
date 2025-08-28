@@ -1,65 +1,86 @@
 // src/app/page.tsx - Updated for batch calculations
 "use client";
 import React, { useEffect, useState, Suspense } from "react";
-import { BatchControlPanel } from "@/src/components/ControlPanel/BatchControlPanel";
-import { BatchProgressBar } from "@/src/components/ProgressBar/BatchProgressBar";
+import { ControlPanel } from "@/src/components/ControlPanel/ControlPanel";
+import { ProgressBar } from "@/src/components/ProgressBar/ProgressBar";
 import { PlotGrid } from "@/src/components/PlotGrid/PlotGrid";
 import { BatchResultsDisplay } from "@/src/components/BatchResults/BatchResultsDisplay";
 import { ResultsSummary } from "@/src/components/ResultsSummary/ResultsSummary";
 import { ErrorBoundary } from "@/src/components/ErrorBoundary/ErrorBoundary";
-import { useBatchCalculation } from "@/src/hooks/useBatchCalculation";
+import { useCalculation } from "@/src/hooks/useCalculation";
 import { usePlotData } from "@/src/hooks/usePlotData";
-import { useBatchSSE } from "@/src/hooks/useBatchSSE";
+import { useSSE } from "@/src/hooks/useSSE";
 import { AcknowledgmentMonitor } from "@/src/components/Debug/AcknowledgmentMonitor";
+import { DEV_CONFIG } from "@/src/utils/constants";
 
 // Define the possible message types for batch operations
 type SSEMessage =
   | {
-      type: "plot_update";
+      type: "plot_update"; // MESSAGE_TYPES.PLOT_UPDATE
       iteration: number;
       plots: any;
       progress: number;
       total_iterations: number;
     }
   | {
-      type: "calculation_complete";
+      type: "calculation_complete"; // MESSAGE_TYPES.CALCULATION_COMPLETE
       task_id: string;
       summary: any;
       complete_plots?: any;
     }
-  | { type: "batch_started"; task_id: string; total_tests: number }
   | {
-      type: "test_started";
+      type: "batch_started"; // MESSAGE_TYPES.BATCH_STARTED
+      task_id: string;
+      total_tests: number;
+    }
+  | {
+      type: "test_started"; // MESSAGE_TYPES.TEST_STARTED
       test_index: number;
       test_name: string;
       test_config: any;
     }
   | {
-      type: "test_iteration_update";
+      type: "test_iteration_update"; // MESSAGE_TYPES.TEST_ITERATION_UPDATE
       test_index: number;
       iteration: number;
       total_iterations: number;
       test_progress: number;
     }
   | {
-      type: "test_completed";
+      type: "test_completed"; // MESSAGE_TYPES.TEST_COMPLETED
       test_index: number;
       test_name: string;
       test_result: any;
       batch_progress: number;
     }
   | {
-      type: "batch_completed";
+      type: "batch_completed"; // MESSAGE_TYPES.BATCH_COMPLETED
       task_id: string;
       batch_summary: any;
       total_tests: number;
     }
-  | { type: "current_state"; state: any }
-  | { type: "error"; error: any }
-  | { type: "batch_error"; error: any }
-  | { type: "connected"; task_id: string }
-  | { type: "timeout" }
-  | { type: "cancelled" }
+  | {
+      type: "current_state"; // MESSAGE_TYPES.CURRENT_STATE
+      state: any;
+    }
+  | {
+      type: "error"; // MESSAGE_TYPES.ERROR
+      error: any;
+    }
+  | {
+      type: "batch_error"; // MESSAGE_TYPES.BATCH_ERROR
+      error: any;
+    }
+  | {
+      type: "connected"; // MESSAGE_TYPES.CONNECTED
+      task_id: string;
+    }
+  | {
+      type: "timeout"; // MESSAGE_TYPES.TIMEOUT
+    }
+  | {
+      type: "cancelled"; // MESSAGE_TYPES.CANCELLED
+    }
   | { type: string; [key: string]: any };
 
 function DashboardContent() {
@@ -94,7 +115,7 @@ function DashboardContent() {
     addTestResult,
     completeCalculation,
     downloadResults,
-  } = useBatchCalculation();
+  } = useCalculation();
 
   const {
     convergenceData,
@@ -115,7 +136,7 @@ function DashboardContent() {
     lastMessage,
     connectionState,
     error: sseError,
-  } = useBatchSSE(taskId, isBatchMode) as {
+  } = useSSE(taskId, isBatchMode) as {
     lastMessage: SSEMessage | null;
     connectionState: any;
     error: any;
@@ -244,7 +265,7 @@ function DashboardContent() {
   };
   return (
     <div className='app'>
-      {process.env.NODE_ENV === "development" && (
+      {DEV_CONFIG.ENABLE_ACKNOWLEDGMENTS && (
         <AcknowledgmentMonitor taskId={taskId} isVisible={true} />
       )}
       <div className='app__container'>
@@ -254,7 +275,7 @@ function DashboardContent() {
 
         {/* Enhanced Control Panel */}
         <div className='app__section'>
-          <BatchControlPanel
+          <ControlPanel
             onStartSingle={handleStartSingle}
             onStartBatch={handleStartBatch}
             onCancel={cancelCalculation}
@@ -268,7 +289,7 @@ function DashboardContent() {
         {/* Enhanced Progress Bar */}
         {(isRunning || singleProgress > 0 || batchProgress > 0) && (
           <div className='app__section'>
-            <BatchProgressBar
+            <ProgressBar
               // Single mode props
               progress={singleProgress}
               elapsedTime={elapsedTime}

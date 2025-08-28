@@ -1,6 +1,7 @@
 // src/components/Debug/AcknowledgmentMonitor.jsx - Optional debug component
 import React, { useState, useEffect } from "react";
 import apiService from "../../services/api";
+import { API_CONFIG } from "@/src/utils/constants";
 
 export function AcknowledgmentMonitor({ taskId, isVisible = false }) {
   const [acknowledgedMessages, setAcknowledgedMessages] = useState([]);
@@ -47,7 +48,7 @@ export function AcknowledgmentMonitor({ taskId, isVisible = false }) {
             } catch (error) {
               console.warn("Failed to check acknowledgment status:", error);
             }
-          }, 1000);
+          }, API_CONFIG.RETRY_DELAY);
         }
       } catch (error) {
         // Ignore parsing errors

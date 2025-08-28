@@ -2,6 +2,7 @@
 /**
  * Server-Sent Events service
  */
+import { API_CONFIG, SSE_CONFIG, MESSAGE_TYPES } from "@/src/utils/constants";
 class SSEService {
   constructor() {
     this.eventSource = null;
@@ -12,10 +13,7 @@ class SSEService {
   /**
    * Connect to SSE stream
    */
-  connect(
-    taskId,
-    baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api"
-  ) {
+  connect(taskId, baseUrl = API_CONFIG.BASE_URL) {
     if (this.eventSource) {
       this.disconnect();
     }
@@ -31,7 +29,7 @@ class SSEService {
         console.error("SSE connection timeout");
         this.disconnect();
         reject(new Error("SSE connection timeout"));
-      }, 10000);
+      }, SSE_CONFIG.CONNECTION_TIMEOUT);
 
       this.eventSource.onopen = () => {
         clearTimeout(timeout);
@@ -101,7 +99,7 @@ class SSEService {
           this.emit("message", data);
 
           // If we receive a completion message, expect the connection to close
-          if (data.type === "calculation_complete") {
+          if (data.type === MESSAGE_TYPES.CALCULATION_COMPLETE) {
             console.log("Received completion message, connection will close");
           }
         } catch (err) {

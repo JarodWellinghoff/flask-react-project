@@ -1,25 +1,22 @@
 # backend/docker-compose.yml
-
+name: redis-celery
 services:
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
 
-  backend:
-    build: .
-    ports:
-      - "5000:5000"
-    env_file: ".env"
-    depends_on:
-      - redis
-    volumes:
-      - ./app:/app/app
-    command: python run.py
-
   celery:
     build: .
-    env_file: ".env"
+    environment:
+      FLASK_ENV: "development"
+      SECRET_KEY: "your-secret-key-here"
+      REDIS_URL: "redis://redis:6379/0"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/1"
+      CORS_ORIGINS: "http://localhost:3000"
     depends_on:
       - redis
     volumes:
