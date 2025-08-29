@@ -10,7 +10,7 @@
       "request": "launch",
       "module": "flask",
       "env": {
-        "FLASK_APP": "backend\\app\\__init__.py",
+        "FLASK_APP": "backend\\run.py",
         "FLASK_DEBUG": "1"
       },
       "args": ["run", "--no-debugger", "--no-reload"],
