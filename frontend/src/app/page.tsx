@@ -1,85 +1,101 @@
-// src/app/page.tsx - Updated for batch calculations
+// src/app/page.tsx - Updated for MUI with batch calculations
 "use client";
 import React, { useEffect, useState, Suspense } from "react";
-import { ControlPanel } from "@/src/components/ControlPanel/ControlPanel";
-import { ProgressBar } from "@/src/components/ProgressBar/ProgressBar";
-import { PlotGrid } from "@/src/components/PlotGrid/PlotGrid";
-import { BatchResultsDisplay } from "@/src/components/BatchResults/BatchResultsDisplay";
-import { ResultsSummary } from "@/src/components/ResultsSummary/ResultsSummary";
-import { ErrorBoundary } from "@/src/components/ErrorBoundary/ErrorBoundary";
+import {
+  Container,
+  Typography,
+  Box,
+  Stack,
+  Alert,
+  Chip,
+  CircularProgress,
+  Card,
+  CardContent,
+} from "@mui/material";
+import {
+  Cloud as CloudIcon,
+  CloudOff as CloudOffIcon,
+  Sync as SyncIcon,
+} from "@mui/icons-material";
+import { ControlPanel } from "@/src/components/ControlPanel";
+import { ProgressBar } from "@/src/components/ProgressBar";
+import { PlotGrid } from "@/src/components/PlotGrid";
+import { BatchResultsDisplay } from "@/src/components/BatchResultsDisplay";
+import { ResultsSummary } from "@/src/components/ResultsSummary";
+import { ErrorBoundary } from "@/src/components/ErrorBoundary";
 import { useCalculation } from "@/src/hooks/useCalculation";
 import { usePlotData } from "@/src/hooks/usePlotData";
 import { useSSE } from "@/src/hooks/useSSE";
-import { AcknowledgmentMonitor } from "@/src/components/Debug/AcknowledgmentMonitor";
+import { AcknowledgmentMonitor } from "@/src/components/AcknowledgmentMonitor";
 import { DEV_CONFIG } from "@/src/utils/constants";
 
 // Define the possible message types for batch operations
 type SSEMessage =
   | {
-      type: "plot_update"; // MESSAGE_TYPES.PLOT_UPDATE
+      type: "plot_update";
       iteration: number;
       plots: any;
       progress: number;
       total_iterations: number;
     }
   | {
-      type: "calculation_complete"; // MESSAGE_TYPES.CALCULATION_COMPLETE
+      type: "calculation_complete";
       task_id: string;
       summary: any;
       complete_plots?: any;
     }
   | {
-      type: "batch_started"; // MESSAGE_TYPES.BATCH_STARTED
+      type: "batch_started";
       task_id: string;
       total_tests: number;
     }
   | {
-      type: "test_started"; // MESSAGE_TYPES.TEST_STARTED
+      type: "test_started";
       test_index: number;
       test_name: string;
       test_config: any;
     }
   | {
-      type: "test_iteration_update"; // MESSAGE_TYPES.TEST_ITERATION_UPDATE
+      type: "test_iteration_update";
       test_index: number;
       iteration: number;
       total_iterations: number;
       test_progress: number;
     }
   | {
-      type: "test_completed"; // MESSAGE_TYPES.TEST_COMPLETED
+      type: "test_completed";
       test_index: number;
       test_name: string;
       test_result: any;
       batch_progress: number;
     }
   | {
-      type: "batch_completed"; // MESSAGE_TYPES.BATCH_COMPLETED
+      type: "batch_completed";
       task_id: string;
       batch_summary: any;
       total_tests: number;
     }
   | {
-      type: "current_state"; // MESSAGE_TYPES.CURRENT_STATE
+      type: "current_state";
       state: any;
     }
   | {
-      type: "error"; // MESSAGE_TYPES.ERROR
+      type: "error";
       error: any;
     }
   | {
-      type: "batch_error"; // MESSAGE_TYPES.BATCH_ERROR
+      type: "batch_error";
       error: any;
     }
   | {
-      type: "connected"; // MESSAGE_TYPES.CONNECTED
+      type: "connected";
       task_id: string;
     }
   | {
-      type: "timeout"; // MESSAGE_TYPES.TIMEOUT
+      type: "timeout";
     }
   | {
-      type: "cancelled"; // MESSAGE_TYPES.CANCELLED
+      type: "cancelled";
     }
   | { type: string; [key: string]: any };
 
@@ -188,10 +204,7 @@ function DashboardContent() {
         break;
 
       case "test_completed":
-        // Add the completed test result
         addTestResult(lastMessage.test_result);
-
-        // Update batch progress
         updateBatchProgress({
           batch_progress: lastMessage.batch_progress,
           completed_tests: lastMessage.test_index + 1,
@@ -243,38 +256,90 @@ function DashboardContent() {
   ]);
 
   const handleStartSingle = async (numIterations: number, testParams: any) => {
-    // Reset state
     setDataTransferred(0);
     setMessageCount(0);
     setCurrentTestName("");
     resetPlotData();
-
-    // Start calculation
     await startSingleCalculation(numIterations, testParams);
   };
 
   const handleStartBatch = async (batchConfig: any) => {
-    // Reset state
     setDataTransferred(0);
     setMessageCount(0);
     setCurrentTestName("");
     resetPlotData();
-
-    // Start batch calculation
     await startBatchCalculation(batchConfig);
   };
+
+  const getConnectionStatusColor = () => {
+    switch (connectionState) {
+      case "OPEN":
+        return "success";
+      case "CONNECTING":
+        return "warning";
+      case "CLOSED":
+        return "default";
+      default:
+        return "error";
+    }
+  };
+
+  const getConnectionIcon = () => {
+    switch (connectionState) {
+      case "OPEN":
+        return <CloudIcon fontSize='small' />;
+      case "CONNECTING":
+        return (
+          <SyncIcon
+            fontSize='small'
+            sx={{ animation: "spin 1s linear infinite" }}
+          />
+        );
+      default:
+        return <CloudOffIcon fontSize='small' />;
+    }
+  };
+
   return (
-    <div className='app'>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: 4 }}>
       {DEV_CONFIG.ENABLE_ACKNOWLEDGMENTS && (
         <AcknowledgmentMonitor taskId={taskId} isVisible={true} />
       )}
-      <div className='app__container'>
-        <h1 className='app__title'>
-          Real-time {isBatchMode ? "Batch " : ""}Calculation Dashboard
-        </h1>
 
-        {/* Enhanced Control Panel */}
-        <div className='app__section'>
+      <Container maxWidth='xl'>
+        <Stack spacing={3}>
+          {/* Header */}
+          <Box sx={{ textAlign: "center", mb: 2 }}>
+            <Typography
+              variant='h3'
+              component='h1'
+              sx={{
+                fontWeight: 700,
+                color: "text.primary",
+                mb: 1,
+              }}>
+              Real-time {isBatchMode ? "Batch " : ""}Calculation Dashboard
+            </Typography>
+
+            {/* SSE Connection Status */}
+            {taskId && connectionState !== "CLOSED" && (
+              <Chip
+                icon={getConnectionIcon()}
+                label={`SSE Status: ${connectionState}`}
+                color={getConnectionStatusColor() as any}
+                variant='outlined'
+                size='small'
+                sx={{
+                  "@keyframes spin": {
+                    "0%": { transform: "rotate(0deg)" },
+                    "100%": { transform: "rotate(360deg)" },
+                  },
+                }}
+              />
+            )}
+          </Box>
+
+          {/* Enhanced Control Panel */}
           <ControlPanel
             onStartSingle={handleStartSingle}
             onStartBatch={handleStartBatch}
@@ -284,18 +349,14 @@ function DashboardContent() {
             taskId={taskId}
             isBatchMode={isBatchMode}
           />
-        </div>
 
-        {/* Enhanced Progress Bar */}
-        {(isRunning || singleProgress > 0 || batchProgress > 0) && (
-          <div className='app__section'>
+          {/* Enhanced Progress Bar */}
+          {(isRunning || singleProgress > 0 || batchProgress > 0) && (
             <ProgressBar
-              // Single mode props
               progress={singleProgress}
               elapsedTime={elapsedTime}
               messageCount={messageCount}
               dataTransferred={dataTransferred}
-              // Batch mode props
               isBatchMode={isBatchMode}
               batchProgress={batchProgress}
               totalTests={totalTests}
@@ -304,60 +365,60 @@ function DashboardContent() {
               currentTestProgress={currentTestProgress}
               currentTestName={currentTestName}
             />
-          </div>
-        )}
+          )}
 
-        {/* Error Display */}
-        {(error || sseError) && (
-          <div className='app__error'>Error: {error || sseError}</div>
-        )}
+          {/* Error Display */}
+          {(error || sseError) && (
+            <Alert severity='error' sx={{ mb: 2 }}>
+              <Typography variant='body2'>
+                <strong>Error:</strong> {error || sseError}
+              </Typography>
+            </Alert>
+          )}
 
-        {/* SSE Connection Status */}
-        {taskId && connectionState !== "CLOSED" && (
-          <div className='app__connection-status'>
-            SSE Status:{" "}
-            <span className={`status status--${connectionState.toLowerCase()}`}>
-              {connectionState}
-            </span>
-          </div>
-        )}
+          {/* Running Status Message */}
+          {isRunning && (
+            <Alert severity='info' sx={{ mb: 2 }}>
+              <Typography variant='body2'>
+                {isBatchMode
+                  ? `Running batch calculation... Test ${
+                      currentTestIndex + 1
+                    } of ${totalTests} (${
+                      currentTestName || `Test ${currentTestIndex + 1}`
+                    }) - Results will be displayed as each test completes.`
+                  : "Calculation in progress... Plots will be displayed when complete."}
+              </Typography>
+            </Alert>
+          )}
 
-        {/* Running Status Message */}
-        {isRunning && (
-          <div className='app__section'>
-            <div className='app__status-message'>
-              {isBatchMode
-                ? `Running batch calculation... Test ${
-                    currentTestIndex + 1
-                  } of ${totalTests} (${
-                    currentTestName || `Test ${currentTestIndex + 1}`
-                  }) - Results will be displayed as each test completes.`
-                : "Calculation in progress... Plots will be displayed when complete."}
-            </div>
-          </div>
-        )}
-
-        {/* Batch Results Display */}
-        {isBatchMode && testResults.length > 0 && (
-          <div className='app__section'>
+          {/* Batch Results Display */}
+          {isBatchMode && testResults.length > 0 && (
             <BatchResultsDisplay
               testResults={testResults}
               batchSummary={batchSummary}
               completedTests={completedTests}
               totalTests={totalTests}
             />
-          </div>
-        )}
+          )}
 
-        {/* Single Calculation Results */}
-        {!isBatchMode && !isRunning && (
-          <>
-            {/* Plot Grid - Only show when calculation is complete */}
-            {(convergenceData.length > 0 ||
-              accuracyData.length > 0 ||
-              performanceData.length > 0) && (
-              <div className='app__section'>
-                <Suspense fallback={<div>Loading plots...</div>}>
+          {/* Single Calculation Results */}
+          {!isBatchMode && !isRunning && (
+            <Stack spacing={3}>
+              {/* Plot Grid - Only show when calculation is complete */}
+              {(convergenceData.length > 0 ||
+                accuracyData.length > 0 ||
+                performanceData.length > 0) && (
+                <Suspense
+                  fallback={
+                    <Card>
+                      <CardContent sx={{ textAlign: "center", py: 4 }}>
+                        <CircularProgress sx={{ mb: 2 }} />
+                        <Typography variant='body2' color='text.secondary'>
+                          Loading plots...
+                        </Typography>
+                      </CardContent>
+                    </Card>
+                  }>
                   <PlotGrid
                     convergenceData={convergenceData}
                     accuracyData={accuracyData}
@@ -366,19 +427,17 @@ function DashboardContent() {
                     plotStats={plotStats}
                   />
                 </Suspense>
-              </div>
-            )}
+              )}
 
-            {/* Single Results Summary */}
-            {plotStats.summary && (
-              <div className='app__section'>
+              {/* Single Results Summary */}
+              {plotStats.summary && (
                 <ResultsSummary summary={plotStats.summary} />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+              )}
+            </Stack>
+          )}
+        </Stack>
+      </Container>
+    </Box>
   );
 }
 

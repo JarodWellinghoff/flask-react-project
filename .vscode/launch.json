@@ -16,6 +16,13 @@
       "args": ["run", "--no-debugger", "--no-reload"],
       "jinja": true,
       "autoStartBrowser": false
+    },
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch Chrome against localhost",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}"
     }
   ]
 }
