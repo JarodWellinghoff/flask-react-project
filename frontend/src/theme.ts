@@ -1,11 +1,11 @@
-// src/components/theme/MuiThemeProvider.tsx
 "use client";
-
-import React from "react";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import CssBaseline from "@mui/material/CssBaseline";
+import { createTheme } from "@mui/material/styles";
 
 const theme = createTheme({
+  cssVariables: {
+    colorSchemeSelector: "data-toolpad-color-scheme",
+  },
+  colorSchemes: { light: true, dark: true },
   palette: {
     primary: {
       main: "#3b82f6", // Blue
@@ -104,11 +104,4 @@ const theme = createTheme({
   spacing: 8,
 });
 
-export function MuiThemeProvider({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {children}
-    </ThemeProvider>
-  );
-}
+export default theme;
